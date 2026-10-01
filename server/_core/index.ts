@@ -6,6 +6,7 @@ import { registerOAuthRoutes } from "./oauth";
 import { publicPlatformScript } from "./publicConfig";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
+import { sendContactEmail } from "./email";
 import { serveStatic, setupVite } from "./vite";
 
 async function startServer() {
@@ -17,6 +18,35 @@ async function startServer() {
   app.get("/api/health", (_req, res) => res.json({ status: "ok" }));
   app.get("/api/platform/config.js", (_req, res) => {
     res.set("Cache-Control", "no-store").type("application/javascript").send(publicPlatformScript());
+  });
+  app.post("/api/contact", async (req, res) => {
+    try {
+      const { name, email, subject, message } = req.body ?? {};
+
+      if (typeof name !== "string" || typeof email !== "string" || typeof subject !== "string" || typeof message !== "string") {
+        return res.status(400).json({ success: false, message: "A valid name, email, subject, and message are required." });
+      }
+
+      const cleaned = {
+        name: name.trim(),
+        email: email.trim(),
+        subject: subject.trim(),
+        message: message.trim(),
+      };
+
+      if (!cleaned.name || !cleaned.email || !cleaned.subject || !cleaned.message || !/^\S+@\S+\.\S+$/.test(cleaned.email)) {
+        return res.status(400).json({ success: false, message: "Please complete every field with a valid email address." });
+      }
+
+      await sendContactEmail(cleaned);
+      return res.status(200).json({ success: true, message: "Your message was sent successfully." });
+    } catch (error) {
+      console.error("Contact email failed:", error);
+      return res.status(503).json({
+        success: false,
+        message: error instanceof Error ? error.message : "Unable to send your message right now. Please try again later.",
+      });
+    }
   });
   registerOAuthRoutes(app);
   // tRPC API

@@ -174,7 +174,8 @@ function App() {
   const [category, setCategory] = useState("All");
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [form, setForm] = useState(initialForm);
-  const [formState, setFormState] = useState<"idle" | "error" | "sent">("idle");
+  const [formState, setFormState] = useState<"idle" | "error" | "sending" | "sent">("idle");
+  const [formMessage, setFormMessage] = useState("");
   const mainRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
@@ -204,20 +205,43 @@ function App() {
   }, [selectedProject, mobileOpen]);
 
   const filteredSkills = useMemo(() => category === "All" ? skills : skills.filter((skill) => skill.category === category), [category]);
-  const mailto = `mailto:${profile.email}?subject=${encodeURIComponent(form.subject || "Project enquiry for SaitamaTech")}&body=${encodeURIComponent(`Hi Israel,\n\n${form.message || "I would like to discuss a project."}\n\nFrom ${form.name || "a potential collaborator"}`)}`;
-
   const scrollTo = (id: string) => {
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
     setMobileOpen(false);
   };
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+
     if (!form.name.trim() || !/^\S+@\S+\.\S+$/.test(form.email) || !form.subject.trim() || !form.message.trim()) {
       setFormState("error");
+      setFormMessage("Please complete every field with a valid email before continuing.");
       return;
     }
-    setFormState("sent");
+
+    setFormState("sending");
+    setFormMessage("Sending your message...");
+
+    try {
+      const response = await fetch("/api/contact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data?.message || "Unable to send your message right now.");
+      }
+
+      setFormState("sent");
+      setFormMessage("Your message has been sent successfully. I’ll get back to you soon.");
+      setForm(initialForm);
+    } catch (error) {
+      setFormState("error");
+      setFormMessage(error instanceof Error ? error.message : "Unable to send your message right now. Please try again later.");
+    }
   };
 
   return (
@@ -281,7 +305,7 @@ function App() {
 
         <section className="github section-shell" id="github"><div className="github__mark"><Github size={31} /></div><div><SectionLabel index="09">Open source & code</SectionLabel><Reveal><h2>The source is<br /><em>part of the story.</em></h2></Reveal><p>Explore the repositories behind the work, follow the experiments, and see how the systems evolve in public.</p></div><a className="button button--primary interactive-target" href={profile.github} target="_blank" rel="noreferrer">Visit SaitamaTech on GitHub <ExternalLink size={16} /></a></section>
 
-        <section className="contact section-shell section-shell--light" id="contact"><div className="contact__heading"><SectionLabel index="10">Start a conversation</SectionLabel><Reveal><h2>Let's build something<br /><em>exceptional.</em></h2></Reveal><p>Have an idea, product, or technical challenge? Let’s turn it into something real.</p><div className="contact-links"><a href={`mailto:${profile.email}`} className="contact-link interactive-target"><Mail size={17} /><span>{profile.email}</span><ArrowUpRight size={15} /></a><a href={`tel:${profile.phone}`} className="contact-link interactive-target"><Phone size={17} /><span>{profile.phone}</span><ArrowUpRight size={15} /></a><a href={profile.whatsapp} target="_blank" rel="noreferrer" className="contact-link interactive-target"><MessageCircle size={17} /><span>WhatsApp</span><ArrowUpRight size={15} /></a></div></div><form className="contact-form" onSubmit={handleSubmit} noValidate><div className="form-intro"><span>01 / CONTACT FORM</span><p>Send a note. Your message will open in your email client after validation.</p></div><label><span>Name</span><input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} placeholder="Your name" autoComplete="name" /></label><label><span>Email</span><input type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} placeholder="you@company.com" autoComplete="email" /></label><label><span>Subject</span><input value={form.subject} onChange={(event) => setForm({ ...form, subject: event.target.value })} placeholder="What are we building?" /></label><label><span>Message</span><textarea value={form.message} onChange={(event) => setForm({ ...form, message: event.target.value })} placeholder="Tell me a little about the idea..." rows={5} /></label>{formState === "error" && <p className="form-message form-message--error" role="alert">Please complete every field with a valid email before continuing.</p>}{formState === "sent" && <div className="form-message form-message--success" role="status"><Check size={16} /><span>Your note is ready. Choose your preferred handoff below.</span><div><a href={mailto} className="text-link interactive-target">Open email <Mail size={15} /></a><a href={profile.whatsapp} target="_blank" rel="noreferrer" className="text-link interactive-target">Open WhatsApp <MessageCircle size={15} /></a></div></div>}<button type="submit" className="button button--primary button--full interactive-target">{formState === "sent" ? "Message validated" : "Send message"} <Send size={16} /></button><span className="form-note">No server-side email service is configured — this form never pretends to send.</span></form></section>
+        <section className="contact section-shell section-shell--light" id="contact"><div className="contact__heading"><SectionLabel index="10">Start a conversation</SectionLabel><Reveal><h2>Let's build something<br /><em>exceptional.</em></h2></Reveal><p>Have an idea, product, or technical challenge? Let’s turn it into something real.</p><div className="contact-links"><a href={`mailto:${profile.email}`} className="contact-link interactive-target"><Mail size={17} /><span>{profile.email}</span><ArrowUpRight size={15} /></a><a href={`tel:${profile.phone}`} className="contact-link interactive-target"><Phone size={17} /><span>{profile.phone}</span><ArrowUpRight size={15} /></a><a href={profile.whatsapp} target="_blank" rel="noreferrer" className="contact-link interactive-target"><MessageCircle size={17} /><span>WhatsApp</span><ArrowUpRight size={15} /></a></div></div><form className="contact-form" onSubmit={handleSubmit} noValidate><div className="form-intro"><span>01 / CONTACT FORM</span><p>Send a message and it will be delivered directly to my inbox.</p></div><label><span>Name</span><input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} placeholder="Your name" autoComplete="name" /></label><label><span>Email</span><input type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} placeholder="you@company.com" autoComplete="email" /></label><label><span>Subject</span><input value={form.subject} onChange={(event) => setForm({ ...form, subject: event.target.value })} placeholder="What are we building?" /></label><label><span>Message</span><textarea value={form.message} onChange={(event) => setForm({ ...form, message: event.target.value })} placeholder="Tell me a little about the idea..." rows={5} /></label>{formState === "error" && <p className="form-message form-message--error" role="alert">{formMessage}</p>}{formState === "sending" && <p className="form-message form-message--info" role="status">{formMessage}</p>}{formState === "sent" && <p className="form-message form-message--success" role="status">{formMessage}</p>}<button type="submit" className="button button--primary button--full interactive-target" disabled={formState === "sending"}>{formState === "sending" ? "Sending..." : "Send inquiry"} <ArrowRight size={16} /></button><span className="form-note">No server-side email service is configured — this form never pretends to send.</span></form></section>
       </main>
 
       <footer className="site-footer"><div className="footer-top"><a href="#home" onClick={() => scrollTo("home")} className="interactive-target"><LogoMark /></a><span>Built by Israel Lawal.</span><div className="footer-links"><a href={profile.github} target="_blank" rel="noreferrer" className="interactive-target">GitHub <ExternalLink size={13} /></a><a href={profile.whatsapp} target="_blank" rel="noreferrer" className="interactive-target">WhatsApp <ExternalLink size={13} /></a><a href={`mailto:${profile.email}`} className="interactive-target">Email <ExternalLink size={13} /></a></div></div><div className="footer-bottom"><span>© 2026 SaitamaTech. All rights reserved.</span><span>Designed for systems that matter.</span></div></footer>
@@ -291,3 +315,4 @@ function App() {
 }
 
 export default App;
+
